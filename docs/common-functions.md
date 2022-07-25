@@ -61,7 +61,42 @@ Object.prototype.isEqual = function (other) {
 }
 ```
 
-## File download
+## File download (Deno)
+
+```typescript
+import { ensureDir } from 'https://deno.land/std@0.145.0/fs/mod.ts'
+
+const download = (url: string, dirname: string) => {
+    fetch(url)
+        .then((value) => {
+            new Response(
+                new ReadableStream({
+                    async start(controller) {
+                        const reader = value.clone().body!.getReader()
+                        while (true) {
+                            const { done } = await reader.read()
+                            if (done) break
+                        }
+                        controller.close()
+                    },
+                })
+            )
+            return value.arrayBuffer()
+        })
+        .then((value) => {
+            const subpath = new URL(url).pathname.split('/').filter(Boolean)
+            const filename = subpath[subpath.length - 1]
+            const fullPath = `${dirname}/${filename}`
+
+            ensureDir(dirname).then(() => {
+                Deno.writeFile(fullPath, new Uint8Array(value))
+            })
+        })
+        .catch(console.error)
+}
+```
+
+## File download (Node)
 
 ```typescript
 import { createWriteStream, unlink } from 'fs'
@@ -101,6 +136,30 @@ const download = (url: string, destination: string) => {
             else reject(error.message)
         })
     })
+}
+```
+
+## Image download
+
+```typescript
+const parseUrlToImageData = async (url: string): Promise<string> => {
+    return fetch(url)
+        .then((response) => {
+            return response.blob()
+        })
+        .then((blob) => {
+            return URL.createObjectURL(blob)
+        })
+}
+
+const downloadImage = async (url: string) => {
+    const a = document.createElement('a')
+
+    a.href = await parseUrlToImageData(url)
+    a.download = url.split('/').pop()
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
 }
 ```
 
